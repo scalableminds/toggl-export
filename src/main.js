@@ -5,6 +5,7 @@ require('datejs');
 const _ = require('lodash');
 const sprintf = require('sprintf').sprintf;
 const commandLineArgs = require('command-line-args');
+const commandLineUsage = require('command-line-usage');
 const https = require('https');
 const sequential = require('promise-sequential');
 const truncate = require('truncate');
@@ -12,7 +13,7 @@ const truncate = require('truncate');
 
 const config = require('../config');
 
-// network
+// request
 
 async function jsonRequest(options, payload = null) {
   return new Promise((resolve, reject) => {
@@ -137,9 +138,39 @@ function processEntries(entries, repositories) {
 
 async function main() {
   const options = commandLineArgs([
-    { name: 'since', alias: 's', type: Date, defaultValue: Date.today().addDays(-6), defaultOption: true },
-    { name: 'until', alias: 'u', type: Date, defaultValue: Date.today() },
+    { name: 'help', alias: 'h', type: Boolean, defaultValue: false },
+    { name: 'since', alias: 's', type: Date.parse, defaultValue: Date.today().addDays(-6), defaultOption: true },
+    { name: 'until', alias: 'u', type: Date.parse, defaultValue: Date.today() },
   ]);
+
+  if (options.help) {
+    process.stdout.write(commandLineUsage([
+      {
+        header: 'TogglExport',
+        content: 'Exports toggl.com time entries to scalableminds time tracker.',
+      },
+      {
+        header: 'Options',
+        optionList: [
+          {
+            name: 'since',
+            typeLabel: '[underline]{yyyy-mm-dd}',
+            description: 'Only export entries logged on or after that date (=until - 1 week).',
+          },
+          {
+            name: 'until',
+            typeLabel: '[underline]{yyyy-mm-dd}',
+            description: 'Only export entries logged before or on that date (=today).',
+          },
+          {
+            name: 'help',
+            description: 'Print this usage guide.',
+          },
+        ],
+      },
+    ]));
+    process.exit();
+  }
 
   process.stdout.write('Fetching time-tracker repositories');
   const repositories = await fetchTimeTrackerRepos(config.timeTrackerSession).then(ok, err);
@@ -165,9 +196,9 @@ async function main() {
     });
   });
 
-  process.stdout.write('\nDoes that sound about right? (Y/n)\n');
-  if (await readKey() === 'n') {
-    process.stdout.write('I was only trying to help :(\n');
+  process.stdout.write('\nDoes that sound about right? (y/N)\n');
+  if (await readKey() !== 'y') {
+    process.stdout.write('I was only trying to help ):\n');
     process.exit();
   }
 
