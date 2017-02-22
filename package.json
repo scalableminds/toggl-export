@@ -1,0 +1,27 @@
+{
+  "name": "toggl-export",
+  "version": "1.0.0",
+  "description": "Exports time tracked on toogl.com to scm.timer.io. ",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node --harmony-async-await src/main.js",
+    "lint": "eslint src/"
+  },
+  "author": "Johannes Frohnhofen <johannes@scm.io>",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^3.16.0",
+    "eslint-config-airbnb-base": "^11.1.0",
+    "eslint-plugin-import": "^2.2.0"
+  },
+  "dependencies": {
+    "colors": "^1.1.2",
+    "command-line-args": "^4.0.1",
+    "command-line-usage": "^4.0.0",
+    "datejs": "^1.0.0-rc3",
+    "lodash": "^4.17.4",
+    "promise-sequential": "^1.1.1",
+    "sprintf": "^0.1.5",
+    "truncate": "^2.0.0"
+  }
+}
