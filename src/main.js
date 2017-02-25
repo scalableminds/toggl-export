@@ -3,15 +3,16 @@
 require('colors');
 require('datejs');
 const _ = require('lodash');
-const sprintf = require('sprintf').sprintf;
+const fs = require('fs');
 const commandLineArgs = require('command-line-args');
 const commandLineUsage = require('command-line-usage');
 const https = require('https');
+const prompt = require('prompt');
 const sequential = require('promise-sequential');
+const sprintf = require('sprintf').sprintf;
 const truncate = require('truncate');
 
-
-const config = require('../config');
+const configFilePath = require('os').homedir() + '/.toggl-export';
 
 // request
 
@@ -109,6 +110,38 @@ function formatDuration(milliSeconds) {
 
 // main
 
+function printHelp() {
+  process.stdout.write(commandLineUsage([
+    {
+      header: 'TogglExport',
+      content: 'Exports toggl.com time entries to scalableminds time tracker.',
+    },
+    {
+      header: 'Options',
+      optionList: [
+        {
+          name: 'config',
+          description: 'Update configuration.',
+        },
+        {
+          name: 'since',
+          typeLabel: '[underline]{yyyy-mm-dd}',
+          description: 'Only export entries logged on or after that date (=until - 1 week).',
+        },
+        {
+          name: 'until',
+          typeLabel: '[underline]{yyyy-mm-dd}',
+          description: 'Only export entries logged before or on that date (=today).',
+        },
+        {
+          name: 'help',
+          description: 'Print this usage guide.',
+        },
+      ],
+    },
+  ]));
+}
+
 function processEntries(entries, repositories) {
   const parsedEntries = entries.map((entry) => {
     const repository = `${entry.client}/${entry.project}`;
@@ -136,39 +169,70 @@ function processEntries(entries, repositories) {
   return aggregatedEntries;
 }
 
+function updateConfig(oldConfig) {
+  return new Promise((resolve) => {
+    prompt.message = '';
+    prompt.start();
+    prompt.get({
+      properties: {
+        togglApiToken: {
+          default: oldConfig.togglApiToken,
+          description: 'Enter your toggl.com API token',
+          message: 'Invalid token.',
+          pattern: /^[0-9a-fA-F]{32}$/,
+          required: true,
+          type: 'string',
+        },
+        togglWorkspaceId: {
+          default: oldConfig.togglWorkspaceId,
+          description: 'Enter your toggl.com workspace id',
+          message: 'Invalid workspace id.',
+          required: true,
+          type: 'number',
+        },
+        timeTrackerSession: {
+          default: oldConfig.timeTrackerSession,
+          description: 'Enter your time tracker session id',
+          message: 'Invalid session id.',
+          pattern: /^[0-9a-zA-Z]{26}$/,
+          required: true,
+          type: 'string',
+        }
+      }
+    }, (_, result) => {
+      prompt.stop();
+      fs.writeFileSync(configFilePath, JSON.stringify(result));
+      resolve(result);
+    });
+  });
+}
+
+function readConfig() {
+  try {
+    const configFile = fs.readFileSync(configFilePath, 'utf8')
+    return JSON.parse(configFile);
+  } catch (err) {
+    return undefined;
+  }
+}
+
 async function main() {
   const options = commandLineArgs([
     { name: 'help', alias: 'h', type: Boolean, defaultValue: false },
+    { name: 'config', alias: 'c', type: Boolean, defaultValue: false },
     { name: 'since', alias: 's', type: Date.parse, defaultValue: Date.today().addDays(-6), defaultOption: true },
     { name: 'until', alias: 'u', type: Date.parse, defaultValue: Date.today() },
   ]);
 
   if (options.help) {
-    process.stdout.write(commandLineUsage([
-      {
-        header: 'TogglExport',
-        content: 'Exports toggl.com time entries to scalableminds time tracker.',
-      },
-      {
-        header: 'Options',
-        optionList: [
-          {
-            name: 'since',
-            typeLabel: '[underline]{yyyy-mm-dd}',
-            description: 'Only export entries logged on or after that date (=until - 1 week).',
-          },
-          {
-            name: 'until',
-            typeLabel: '[underline]{yyyy-mm-dd}',
-            description: 'Only export entries logged before or on that date (=today).',
-          },
-          {
-            name: 'help',
-            description: 'Print this usage guide.',
-          },
-        ],
-      },
-    ]));
+    printHelp();
+    process.exit();
+  }
+
+  let config = readConfig();
+  if (config === undefined || options.config) {
+    await updateConfig(config || {});
+    process.stdout.write('Config updated.\n');
     process.exit();
   }
 
@@ -198,7 +262,7 @@ async function main() {
 
   process.stdout.write('\nDoes that sound about right? (y/N)\n');
   if (await readKey() !== 'y') {
-    process.stdout.write('I was only trying to help ):\n');
+    process.stdout.write('Goodbye then.\n');
     process.exit();
   }
 

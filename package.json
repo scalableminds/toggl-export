@@ -24,6 +24,7 @@
     "datejs": "^1.0.0-rc3",
     "lodash": "^4.17.4",
     "promise-sequential": "^1.1.1",
+    "prompt": "^1.0.0",
     "sprintf": "^0.1.5",
     "truncate": "^2.0.0"
   }
