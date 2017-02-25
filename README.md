@@ -14,8 +14,8 @@ TogglExport
 
 Options
 
+  --from yyyy-mm-dd    Export entries logged on or after that date (until - 1 week).
+  --until yyyy-mm-dd   Export entries logged before or on that date (today).
   --config             Update configuration.
-  --since yyyy-mm-dd   Only export entries logged on or after that date (until - 1 week).
-  --until yyyy-mm-dd   Only export entries logged before or on that date (today).
   --help               Print this message.
   ```

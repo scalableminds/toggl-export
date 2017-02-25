@@ -120,18 +120,18 @@ function printHelp() {
       header: 'Options',
       optionList: [
         {
-          name: 'config',
-          description: 'Update configuration.',
-        },
-        {
-          name: 'since',
+          name: 'from',
           typeLabel: '[underline]{yyyy-mm-dd}',
-          description: 'Only export entries logged on or after that date (until - 1 week).',
+          description: 'Export entries logged on or after that date (until - 1 week).',
         },
         {
           name: 'until',
           typeLabel: '[underline]{yyyy-mm-dd}',
-          description: 'Only export entries logged before or on that date (today).',
+          description: 'Export entries logged before or on that date (today).',
+        },
+        {
+          name: 'config',
+          description: 'Update configuration.',
         },
         {
           name: 'help',
