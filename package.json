@@ -1,8 +1,11 @@
 {
   "name": "toggl-export",
   "version": "1.0.0",
-  "description": "Exports time tracked on toogl.com to scm.timer.io. ",
+  "description": "Exports time tracked on toogl.com to scm.timer.io.",
   "main": "src/main.js",
+  "bin": {
+    "toggl-export": "node --harmony-async-await src/main.js"
+  },
   "scripts": {
     "start": "node --harmony-async-await src/main.js",
     "lint": "eslint src/"
