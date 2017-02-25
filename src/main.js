@@ -1,4 +1,4 @@
-// @flow
+#!/usr/bin/env node --harmony-async-await
 
 require('colors');
 require('datejs');

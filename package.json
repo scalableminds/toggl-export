@@ -4,10 +4,10 @@
   "description": "Exports time tracked on toogl.com to scm.timer.io.",
   "main": "src/main.js",
   "bin": {
-    "toggl-export": "node --harmony-async-await src/main.js"
+    "toggl-export": "src/main.js"
   },
   "scripts": {
-    "start": "node --harmony-async-await src/main.js",
+    "start": "src/main.js",
     "lint": "eslint src/"
   },
   "author": "Johannes Frohnhofen <johannes@scm.io>",
