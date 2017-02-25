@@ -126,47 +126,29 @@ function printHelp() {
         {
           name: 'since',
           typeLabel: '[underline]{yyyy-mm-dd}',
-          description: 'Only export entries logged on or after that date (=until - 1 week).',
+          description: 'Only export entries logged on or after that date (until - 1 week).',
         },
         {
           name: 'until',
           typeLabel: '[underline]{yyyy-mm-dd}',
-          description: 'Only export entries logged before or on that date (=today).',
+          description: 'Only export entries logged before or on that date (today).',
         },
         {
           name: 'help',
-          description: 'Print this usage guide.',
+          description: 'Print this message.',
         },
       ],
     },
   ]));
 }
 
-function processEntries(entries, repositories) {
-  const parsedEntries = entries.map((entry) => {
-    const repository = `${entry.client}/${entry.project}`;
-    const description = entry.description.match(/^#(\d+) (.*)$/);
-    if (repository === null || description === null) {
-      return null;
-    }
-    return {
-      repository,
-      id: repositories.get(repository),
-      issueNumber: description[1],
-      comment: description[2],
-      dateTime: new Date(entry.start).clearTime(),
-      duration: entry.dur,
-    };
-  });
-
-  const filteredEntries = _.compact(parsedEntries);
-  const groupedEntries = _.values(_.groupBy(filteredEntries, entry => [entry.repository, entry.issueNumber, entry.comment, entry.dateTime].join('$')));
-  const aggregatedEntries = groupedEntries.map((entry) => {
-    const totalDuration = _.sum(entry.map(e => e.duration));
-    entry[0].duration = formatDuration(totalDuration);
-    return entry[0];
-  });
-  return aggregatedEntries;
+function readConfig() {
+  try {
+    const configFile = fs.readFileSync(configFilePath, 'utf8')
+    return JSON.parse(configFile);
+  } catch (err) {
+    return undefined;
+  }
 }
 
 function updateConfig(oldConfig) {
@@ -207,13 +189,31 @@ function updateConfig(oldConfig) {
   });
 }
 
-function readConfig() {
-  try {
-    const configFile = fs.readFileSync(configFilePath, 'utf8')
-    return JSON.parse(configFile);
-  } catch (err) {
-    return undefined;
-  }
+function processEntries(entries, repositories) {
+  const parsedEntries = entries.map((entry) => {
+    const repository = `${entry.client}/${entry.project}`;
+    const description = entry.description.match(/^#(\d+) (.*)$/);
+    if (repository === null || description === null) {
+      return null;
+    }
+    return {
+      repository,
+      id: repositories.get(repository),
+      issueNumber: description[1],
+      comment: description[2],
+      dateTime: new Date(entry.start).clearTime(),
+      duration: entry.dur,
+    };
+  });
+
+  const filteredEntries = _.compact(parsedEntries);
+  const groupedEntries = _.values(_.groupBy(filteredEntries, entry => [entry.repository, entry.issueNumber, entry.comment, entry.dateTime].join('$')));
+  const aggregatedEntries = groupedEntries.map((entry) => {
+    const totalDuration = _.sum(entry.map(e => e.duration));
+    entry[0].duration = formatDuration(totalDuration);
+    return entry[0];
+  });
+  return aggregatedEntries;
 }
 
 async function main() {
