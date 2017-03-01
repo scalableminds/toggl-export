@@ -193,7 +193,7 @@ function processEntries(entries, repositories) {
   const parsedEntries = entries.map((entry) => {
     const repository = `${entry.client}/${entry.project}`;
     const description = entry.description.match(/^#(\d+) (.*)$/);
-    if (repository === null || description === null) {
+    if (repositories.get(repository) === undefined || description === null) {
       return null;
     }
     return {
