@@ -12,7 +12,7 @@ const sequential = require('promise-sequential');
 const sprintf = require('sprintf').sprintf;
 const truncate = require('truncate');
 
-const configFilePath = require('os').homedir() + '/.toggl-export';
+const configFilePath = `${require('os').homedir()}/.toggl-export`;
 
 // request
 
@@ -29,7 +29,7 @@ async function jsonRequest(options, payload = null) {
     }).on('error', (e) => {
       reject(e);
     });
-    if (payload !== null) {
+    if (payload != null) {
       request.write(payload);
     }
     request.end();
@@ -83,7 +83,7 @@ function ok(r) {
   return r;
 }
 
-function err(e) {
+function error(e) {
   process.stdout.write(' [ ');
   process.stdout.write(e.red);
   process.stdout.write(' ]\n');
@@ -120,35 +120,57 @@ function printHelp() {
       header: 'Options',
       optionList: [
         {
-          name: 'from',
-          typeLabel: '[underline]{yyyy-mm-dd}',
-          description: 'Export entries logged on or after that date (until - 1 week).',
-        },
-        {
-          name: 'until',
-          typeLabel: '[underline]{yyyy-mm-dd}',
-          description: 'Export entries logged before or on that date (today).',
-        },
-        {
           name: 'config',
           description: 'Update configuration.',
         },
         {
+          name: 'since',
+          typeLabel: '[underline]{yyyy-mm-dd}',
+          description: 'Only export entries logged on or after that date (=until - 1 week).',
+        },
+        {
+          name: 'until',
+          typeLabel: '[underline]{yyyy-mm-dd}',
+          description: 'Only export entries logged before or on that date (=today).',
+        },
+        {
           name: 'help',
-          description: 'Print this message.',
+          description: 'Print this usage guide.',
         },
       ],
     },
   ]));
 }
 
-function readConfig() {
-  try {
-    const configFile = fs.readFileSync(configFilePath, 'utf8')
-    return JSON.parse(configFile);
-  } catch (err) {
-    return undefined;
-  }
+function processEntries(entries, repositories) {
+  const parsedEntries = entries.map((entry) => {
+    const repository = `${entry.client}/${entry.project}`;
+    const repositoryId = repositories.get(repository);
+    const description = entry.description.match(/^#(\d+) (.*)$/);
+
+    if (repositoryId == null || description == null) {
+      return null;
+    }
+    console.log(entry.start);
+    return {
+      repository,
+      id: repositoryId,
+      issueNumber: description[1],
+      comment: description[2],
+      dateTime: new Date(entry.start).clearTime(),
+      duration: entry.dur,
+    };
+  });
+
+  const filteredEntries = _.compact(parsedEntries);
+  const groupedEntries = _.values(_.groupBy(filteredEntries, entry => [entry.repository, entry.issueNumber, entry.comment, entry.dateTime].join('$')));
+  const aggregatedEntries = groupedEntries.map((entry) => {
+    const totalDuration = _.sum(entry.map(e => e.duration));
+    entry[0].dur = totalDuration;
+    entry[0].duration = formatDuration(totalDuration);
+    return entry[0];
+  });
+  return aggregatedEntries;
 }
 
 function updateConfig(oldConfig) {
@@ -179,9 +201,9 @@ function updateConfig(oldConfig) {
           pattern: /^[0-9a-zA-Z]{26}$/,
           required: true,
           type: 'string',
-        }
-      }
-    }, (_, result) => {
+        },
+      },
+    }, (__, result) => {
       prompt.stop();
       fs.writeFileSync(configFilePath, JSON.stringify(result));
       resolve(result);
@@ -189,31 +211,13 @@ function updateConfig(oldConfig) {
   });
 }
 
-function processEntries(entries, repositories) {
-  const parsedEntries = entries.map((entry) => {
-    const repository = `${entry.client}/${entry.project}`;
-    const description = entry.description.match(/^#(\d+) (.*)$/);
-    if (repositories.get(repository) === undefined || description === null) {
-      return null;
-    }
-    return {
-      repository,
-      id: repositories.get(repository),
-      issueNumber: description[1],
-      comment: description[2],
-      dateTime: new Date(entry.start).clearTime(),
-      duration: entry.dur,
-    };
-  });
-
-  const filteredEntries = _.compact(parsedEntries);
-  const groupedEntries = _.values(_.groupBy(filteredEntries, entry => [entry.repository, entry.issueNumber, entry.comment, entry.dateTime].join('$')));
-  const aggregatedEntries = groupedEntries.map((entry) => {
-    const totalDuration = _.sum(entry.map(e => e.duration));
-    entry[0].duration = formatDuration(totalDuration);
-    return entry[0];
-  });
-  return aggregatedEntries;
+function readConfig() {
+  try {
+    const configFile = fs.readFileSync(configFilePath, 'utf8');
+    return JSON.parse(configFile);
+  } catch (e) {
+    return undefined;
+  }
 }
 
 async function main() {
@@ -229,7 +233,7 @@ async function main() {
     process.exit();
   }
 
-  let config = readConfig();
+  const config = readConfig();
   if (config === undefined || options.config) {
     await updateConfig(config || {});
     process.stdout.write('Config updated.\n');
@@ -237,10 +241,10 @@ async function main() {
   }
 
   process.stdout.write('Fetching time-tracker repositories');
-  const repositories = await fetchTimeTrackerRepos(config.timeTrackerSession).then(ok, err);
+  const repositories = await fetchTimeTrackerRepos(config.timeTrackerSession).then(ok, error);
 
   process.stdout.write(`Looking for time entries from '${options.since.format('dS M Y')}' to '${options.until.format('dS M Y')}'`);
-  const togglEntries = await fetchTogglEntries(config.togglApiToken, config.togglWorkspaceId, options.since, options.until).then(ok, err);
+  const togglEntries = await fetchTogglEntries(config.togglApiToken, config.togglWorkspaceId, options.since, options.until).then(ok, error);
 
   const transformedEntries = processEntries(togglEntries, repositories);
   if (transformedEntries.length === 0) {
@@ -260,6 +264,9 @@ async function main() {
     });
   });
 
+  const totalDuration = formatDuration(_.sumBy(transformedEntries, entry => entry.dur));
+  process.stdout.write(`\nTotal time: ${totalDuration}\n`.bold);
+
   process.stdout.write('\nDoes that sound about right? (y/N)\n');
   if (await readKey() !== 'y') {
     process.stdout.write('Goodbye then.\n');
@@ -269,7 +276,7 @@ async function main() {
   process.stdout.write('\nHere we go:\n');
   await sequential(transformedEntries.map(entry => () => {
     process.stdout.write(sprintf('Logging %s on %5s %-52s', entry.duration, `#${entry.issueNumber}`, truncate(entry.comment, 50)));
-    return logTime(entry, config.timeTrackerSession).then(ok, err);
+    return logTime(entry, config.timeTrackerSession).then(ok, error);
   }));
 
   process.stdout.write('\nDone.\n');
