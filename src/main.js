@@ -1,12 +1,12 @@
 #!/usr/bin/env node --harmony-async-await
 
 require('colors');
-require('datejs');
 const _ = require('lodash');
 const fs = require('fs');
 const commandLineArgs = require('command-line-args');
 const commandLineUsage = require('command-line-usage');
 const https = require('https');
+const moment = require('moment');
 const prompt = require('prompt');
 const sequential = require('promise-sequential');
 const sprintf = require('sprintf').sprintf;
@@ -42,7 +42,7 @@ async function jsonRequest(options, payload = null) {
 async function fetchTogglEntries(token, workspaceId, since, until, page = 1) {
   const json = await jsonRequest({
     host: 'toggl.com',
-    path: `/reports/api/v2/details?workspace_id=${workspaceId}&user_agent=time_tracker_export&since=${since.format('Y-m-d')}&until=${until.format('Y-m-d')}&page=${page}`,
+    path: `/reports/api/v2/details?workspace_id=${workspaceId}&user_agent=time_tracker_export&since=${since.format('YYYY-MM-DD')}&until=${until.format('YYYY-MM-DD')}&page=${page}`,
     auth: `${token}:api_token`,
   });
   if (json.data.length === 0) {
@@ -148,26 +148,27 @@ function processEntries(entries, repositories) {
     const repositoryId = repositories.get(repository);
     const description = entry.description.match(/^#(\d+) (.*)$/);
 
-    if (repositoryId == null || description == null) {
+    if (repositoryId != null && description != null) {
+      return {
+        repository,
+        id: repositoryId,
+        issueNumber: description[1],
+        comment: description[2],
+        date: moment(entry.start).startOf('day'),
+        dur: entry.dur,
+      };
+    } else {
       return null;
     }
-    console.log(entry.start);
-    return {
-      repository,
-      id: repositoryId,
-      issueNumber: description[1],
-      comment: description[2],
-      dateTime: new Date(entry.start).clearTime(),
-      duration: entry.dur,
-    };
   });
 
   const filteredEntries = _.compact(parsedEntries);
-  const groupedEntries = _.values(_.groupBy(filteredEntries, entry => [entry.repository, entry.issueNumber, entry.comment, entry.dateTime].join('$')));
+  const groupedEntries = _.values(_.groupBy(filteredEntries, entry => [entry.repository, entry.issueNumber, entry.comment, entry.date].join('$')));
   const aggregatedEntries = groupedEntries.map((entry) => {
-    const totalDuration = _.sum(entry.map(e => e.duration));
+    const totalDuration = _.sum(entry.map(e => e.dur));
     entry[0].dur = totalDuration;
     entry[0].duration = formatDuration(totalDuration);
+    entry[0].dateTime = entry[0].date.format();
     return entry[0];
   });
   return aggregatedEntries;
@@ -224,8 +225,8 @@ async function main() {
   const options = commandLineArgs([
     { name: 'help', alias: 'h', type: Boolean, defaultValue: false },
     { name: 'config', alias: 'c', type: Boolean, defaultValue: false },
-    { name: 'since', alias: 's', type: Date.parse, defaultValue: Date.today().addDays(-6), defaultOption: true },
-    { name: 'until', alias: 'u', type: Date.parse, defaultValue: Date.today() },
+    { name: 'since', alias: 's', type: moment, defaultValue: moment().startOf('day').subtract(6, 'days'), defaultOption: true },
+    { name: 'until', alias: 'u', type: moment, defaultValue: moment().startOf('day') },
   ]);
 
   if (options.help) {
@@ -243,7 +244,7 @@ async function main() {
   process.stdout.write('Fetching time-tracker repositories');
   const repositories = await fetchTimeTrackerRepos(config.timeTrackerSession).then(ok, error);
 
-  process.stdout.write(`Looking for time entries from '${options.since.format('dS M Y')}' to '${options.until.format('dS M Y')}'`);
+  process.stdout.write(`Looking for time entries from ${options.since.format('Do MMMM YYYY')} until ${options.until.format('Do MMMM YYYY')}`);
   const togglEntries = await fetchTogglEntries(config.togglApiToken, config.togglWorkspaceId, options.since, options.until).then(ok, error);
 
   const transformedEntries = processEntries(togglEntries, repositories);
@@ -254,12 +255,14 @@ async function main() {
 
   process.stdout.write('\nLooks like you actually did some work.\n');
 
-  const groupedByDay = _.groupBy(transformedEntries, entry => entry.dateTime);
-  const workdays = _.sortBy(_.keys(groupedByDay).map(Date.parse), date => date.getElapsed()).reverse();
+  const groupedByDay = _.groupBy(transformedEntries, entry => entry.date.valueOf());
+  const days = _.sortBy(_.keys(groupedByDay));
 
-  workdays.forEach((day) => {
-    process.stdout.write(`\n${day.format('dS M Y')}\n`.bold);
-    groupedByDay[day].forEach((entry) => {
+  days.forEach((day) => {
+    const entries = groupedByDay[day];
+    const date = entries[0].date;
+    process.stdout.write(`\n${date.format('Do MMMM YYYY')}\n`.bold);
+    entries.forEach((entry) => {
       process.stdout.write(sprintf('  %7s  %5s %-52s [%s]\n', entry.duration, `#${entry.issueNumber}`, truncate(entry.comment, 50), entry.repository));
     });
   });
