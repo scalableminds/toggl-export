@@ -2,7 +2,7 @@
 Exports toogl.com log entries to scalableminds time-tracker. Update operations are not idempotent, so please be careful.
 
 ## Installation
-`yarn global add https://github.com/jfrohnhofen/toggl-export.git`
+`yarn global add https://github.com/scalableminds/toggl-export.git`
 
 ## Usage
 ```
